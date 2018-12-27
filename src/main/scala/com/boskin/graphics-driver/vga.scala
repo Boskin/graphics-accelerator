@@ -3,9 +3,7 @@ package com.boskin.graphicsDriver
 
 import chisel3._
 import chisel3.core.withClockAndReset
-
-import scala.math.log
-import scala.math.ceil
+import chisel3.util.log2Ceil
 
 import com.boskin.synchronization._
 
@@ -37,8 +35,8 @@ class VGA(timeSpec: VGATiming, pixelWidth: Int, memRdLatency: Int)
   extends Module {
 
   // Widths for the line and column counters
-  val ptrHWidth: Int = ceil(log(timeSpec.horizontal.total) / log(2.0)).toInt
-  val ptrVWidth: Int = ceil(log(timeSpec.vertical.total) / log(2.0)).toInt
+  val ptrHWidth: Int = log2Ceil(timeSpec.horizontal.total)
+  val ptrVWidth: Int = log2Ceil(timeSpec.vertical.total)
 
   val io = IO(new Bundle {
     // Graphics clock
@@ -66,7 +64,7 @@ class VGA(timeSpec: VGATiming, pixelWidth: Int, memRdLatency: Int)
   // Basically everything works in the gClk domain
   withClockAndReset(io.gClk, io.gReset) {
     // Enable synchronized to gClk
-    val gEn = CDC(io.en, io.gClk, io.gReset)
+    val gEn = CDC(io.en)
 
     // Row and column counters
     val rowCounter = Reg(UInt(ptrVWidth.W))
