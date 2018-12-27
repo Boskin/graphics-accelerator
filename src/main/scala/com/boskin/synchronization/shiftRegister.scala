@@ -36,3 +36,13 @@ object Delay {
     inst.io.dout === 1.U
   }
 }
+
+// Simple CDC module, instantiate this in the destination clock domain
+object CDC {
+  def apply(din: Bool, length: Int = 2): Bool = {
+    val inst = Module(new ShiftRegister(1, length))
+    inst.io.din := din
+    inst.io.en := true.B
+    inst.io.dout === 1.U
+  }
+}
