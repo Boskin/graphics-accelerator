@@ -4,7 +4,10 @@ import chisel3._
 import chisel3.core.{withClockAndReset, withClock}
 import chisel3.util.log2Ceil
 
-class FrameMemory(pixelWidth: Int, rows: Int, cols: Int) extends Module {
+import com.boskin.graphicsDriver.Color
+import com.boskin.graphicsDriver.ColorSpec
+
+class FrameMemory(colorSpec: ColorSpec, rows: Int, cols: Int) extends Module {
   val rowAddrWidth: Int = log2Ceil(rows)
   val colAddrWidth: Int = log2Ceil(cols)
 
@@ -19,11 +22,11 @@ class FrameMemory(pixelWidth: Int, rows: Int, cols: Int) extends Module {
     // If high, prevents reading to avoid synchronization issues
     val wrLock = Input(Bool())
 
-    var wrData = Input(UInt(pixelWidth.W))
-    val rdData = Output(UInt(pixelWidth.W))
+    val wrData = Input(new Color(colorSpec))
+    val rdData = Output(new Color(colorSpec))
   })
 
-  val frameMem = Vec(rows, Vec(cols, Color(pixelWidth))
+  val frameMem = Vec(rows, Vec(cols, new Color(colorSpec)))
 
   // Write logic
   when (io.wrLock && io.wrReq.en) {
@@ -34,7 +37,7 @@ class FrameMemory(pixelWidth: Int, rows: Int, cols: Int) extends Module {
   withClockAndReset(io.rdClk, io.rdReset) {
     // Synchronize wrLock to the rdClk domain
     val wrLockSync = CDC(io.wrLock)
-    val rdDataReg = Reg(UInt(pixelWidth.W))
+    val rdDataReg = Reg(new Color(colorSpec))
     io.rdData := rdDataReg
 
     /* Read logic, make sure reading only happens if nothing is writing to this
