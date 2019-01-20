@@ -87,9 +87,9 @@ class VGA(timeSpec: VGATiming, pixelWidth: Int, memRdLatency: Int)
     }
 
     // Delayed registers that factor in memory read latency
-    val rowCounterDly = Delay(ptrVWidth, 1, rowCounter)
-    val colCounterDly = Delay(ptrHWidth, 1, colCounter)
-    val reqDly = Delay(1, io.req)
+    val rowCounterDly = Delay(UInt(ptrVWidth.W), 1, rowCounter)
+    val colCounterDly = Delay(UInt(ptrHWidth.W), 1, colCounter)
+    val reqDly = Delay(Bool(), 1, io.req)
 
     // Only request pixels if in the visible region
     io.req := timeSpec.vertical.visibleRegion(rowCounter) &
