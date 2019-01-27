@@ -4,7 +4,9 @@ import chisel3._
 import chisel3.core.{withClock, withClockAndReset}
 import chisel3.util.log2Ceil
 
-class AsyncFIFOReq[T <: Data](gen: T, write: Boolean) extends Bundle {
+class AsyncFIFOReq[T <: Data](private val gen: T, val write: Boolean)
+  extends Bundle {
+
   val en = Input(Bool())
   val data = if (write) {
     Input(gen)
