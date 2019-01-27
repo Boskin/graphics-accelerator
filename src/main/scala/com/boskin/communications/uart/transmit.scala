@@ -1,18 +1,19 @@
 package com.boskin.communications.uart
 
 import chisel3._
-import chisel3.core.withClock
+import chisel3.core.withClockAndReset
 import chisel3.util._
 
 import com.boskin.synchronization.{AsyncFIFOReq, CDC}
 
-class TransmitSubsystemIO(pktSize: Int) extends Bundle {
+class TransmitSubsystemIO(val pktSize: Int) extends Bundle {
   val txReq = new UARTReq(pktSize, true)
   val fifoRdReq = Flipped(new AsyncFIFOReq(Bool(), false))
   val fifoWrReq = Flipped(new AsyncFIFOReq(Bool(), true))
   val fifoEmpty = Input(Bool())
   val tx = Output(Bool())
   val otherClk = Input(Clock())
+  val otherReset = Input(Bool())
 }
 
 class TransmitSubsystem(pktSize: Int) extends Module {
@@ -84,7 +85,7 @@ class TransmitSubsystem(pktSize: Int) extends Module {
   }
 
   // TX driver/TX FIFO read logic
-  withClock (io.otherClk) {
+  withClockAndReset (io.otherClk, io.otherReset) {
     // Will only work as long as state is 1 bit
     val stateSync = CDC(state, UInt(1.W))
     // Used for stateSync edge detection

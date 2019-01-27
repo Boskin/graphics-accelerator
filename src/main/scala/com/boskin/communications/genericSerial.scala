@@ -34,5 +34,8 @@ class GenericSerial[T <: GenericSerialIO](gen: T, fifoDepth: Int)
   val txFIFOInst = Module(new AsyncFIFO(Bool(), fifoDepth))
   txFIFOInst.io.rdClk := io.otherClk
   txFIFOInst.io.rdReset := io.otherReset
+
+  txFIFOInst.io.wrClk := clock
+  txFIFOInst.io.wrReset := reset
   // Implement transmitter control logic in subclass
 }

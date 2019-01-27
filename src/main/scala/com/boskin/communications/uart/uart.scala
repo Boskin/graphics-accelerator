@@ -31,7 +31,7 @@ class UARTIO(pktSize: Int) extends GenericSerialIO {
   }
 }
 
-class UART(pktSize: Int, fifoDepth: Int)
+class UART(pktSize: Int, rxDepth: Int, fifoDepth: Int)
   extends GenericSerial(new UARTIO(pktSize), fifoDepth) {
 
   val transInst = Module(new TransmitSubsystem(pktSize))
@@ -42,16 +42,30 @@ class UART(pktSize: Int, fifoDepth: Int)
   transInst.io.fifoWrReq <> txFIFOInst.io.wrReq
   // More inputs
   transInst.io.fifoEmpty := txFIFOInst.io.empty
+
   transInst.io.otherClk := io.otherClk
+  transInst.io.otherReset := io.otherReset
 
   // Raw TX signal
   io.tx := transInst.io.tx
 
+  val recvInst = Module(new ReceiveSubsystem(pktSize, rxDepth)) 
+
+  recvInst.io.rxReq <> io.rxReq
+  recvInst.io.fifoRdReq <> rxFIFOInst.io.rdReq
+  recvInst.io.fifoWrReq <> rxFIFOInst.io.wrReq
+  recvInst.io.fifoEmpty := rxFIFOInst.io.empty
+
+  recvInst.io.otherClk := io.otherClk
+  recvInst.io.otherReset := io.otherReset
+
+  recvInst.io.rxSync := rxSync
 }
 
 object GenUART extends App {
   val pktSize = 8
+  val rxDepth = 32
   val fifoDepth = 32
 
-  chisel3.Driver.execute(args, () => new UART(pktSize, fifoDepth))
+  chisel3.Driver.execute(args, () => new UART(pktSize, rxDepth, fifoDepth))
 }
