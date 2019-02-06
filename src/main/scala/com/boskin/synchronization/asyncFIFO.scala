@@ -64,12 +64,11 @@ class AsyncFIFO[T <: Data](gen: T, depth: Int) extends Module {
     val rdData = Reg(gen)
     io.rdReq.data := rdData
 
+    io.rdReq.valid := RegNext(io.rdReq.en && !empty)
+
     when (io.rdReq.en && !empty) {
       rdData := fifoMem(rdPtrGray)
       rdPtrGray := BinaryToGray(rdPtrBin + 1.U, ptrWidth)
-      io.rdReq.valid := RegNext(true.B)
-    } .otherwise {
-      io.rdReq.valid := RegNext(false.B)
     }
   }
 
@@ -80,13 +79,11 @@ class AsyncFIFO[T <: Data](gen: T, depth: Int) extends Module {
     val full = rdPtrSyncBin(ptrWidth - 2, 0) === wrPtrBin(ptrWidth - 2, 0) &&
       rdPtrSyncBin(ptrWidth - 1) =/= wrPtrBin(ptrWidth - 1)
     io.full := full
+    io.wrReq.valid := RegNext(io.wrReq.en && !full)
 
     when (io.wrReq.en && !full) {
       fifoMem(wrPtrGray) := io.wrReq.data
       wrPtrGray := BinaryToGray(wrPtrBin + 1.U, ptrWidth)
-      io.wrReq.valid := RegNext(true.B)
-    } .otherwise {
-      io.wrReq.valid := RegNext(false.B)
     }
   }
 }
