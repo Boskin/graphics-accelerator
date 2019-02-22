@@ -1,3 +1,6 @@
+/* Simple Verilog testbench for testing the asynchronous FIFO module; it was
+ * easier to generate 2 asynchronous clocks in Verilog rather than in Chisel's
+ * testing environment */
 `timescale 1ns/1ns
 module tb_async_fifo;
   localparam RD_CLK_HPERIOD = 1;
