@@ -3,8 +3,8 @@ package com.boskin.synchronization
 
 import chisel3._
 
-class ShiftRegister[T <: Data](gen: T, length: Int, load: Boolean = false)
-  extends Module {
+class ShiftRegister[T <: Data](gen: T, length: Int, load: Boolean = false,
+  exposeReg: Boolean = false) extends Module {
 
   val io = IO(new Bundle {
     val din = Input(gen)
@@ -16,6 +16,11 @@ class ShiftRegister[T <: Data](gen: T, length: Int, load: Boolean = false)
     }
     val ldVal = if (load) {
       Input(Vec(length, gen))
+    } else {
+      null
+    }
+    val shiftReg = if (exposeReg) {
+      Output(Vec(length, gen))
     } else {
       null
     }
@@ -46,6 +51,10 @@ class ShiftRegister[T <: Data](gen: T, length: Int, load: Boolean = false)
     when (io.en) {
       shiftLogic()
     }
+  }
+
+  if (exposeReg) {
+    io.shiftReg := shiftReg
   }
 
   io.dout := shiftReg(length - 1)
