@@ -71,7 +71,7 @@ class ReceiveSubsystem(pktSize: Int, pktBufDepth: Int) extends Module {
 
 
   // Shift register that buffers the bits in the RX FIFO to form a packet
-  val pktShiftRegInst = Module(new ShiftRegister(Bool(), pktSize))
+  val pktShiftRegInst = Module(new ShiftRegister(Bool(), pktSize, false, true))
   /* Counter that counts how many bits have been shifted into the shift
    * register */
   val bitCount = RegInit(0.U(bitCountWidth.W))
@@ -90,11 +90,11 @@ class ReceiveSubsystem(pktSize: Int, pktBufDepth: Int) extends Module {
 
   /* If there are bits in the RX FIFO, read them and shift them into the shift
    * register */
-  shiftRegEn := !io.fifoEmpty
+  shiftRegEn := io.fifoRdReq.valid
   fifoRdEn := !io.fifoEmpty
 
   // Count how many bits have been read from the FIFO
-  when (!io.fifoEmpty) {
+  when (io.fifoRdReq.valid) {
     when (bitCount === (pktSize - 1).U) {
       bitCount := 0.U
       pktFIFOWrEn := true.B
@@ -102,14 +102,16 @@ class ReceiveSubsystem(pktSize: Int, pktBufDepth: Int) extends Module {
       bitCount := bitCount + 1.U
       pktFIFOWrEn := false.B
     }
+  } .otherwise {
+    pktFIFOWrEn := false.B
   }
 
   /*****************************/
   /* RX request bundle drivers */
   /*****************************/
-  /* Simply hook up the RX FIFO's read port to the data read port of the
+  /* Hook up the RX FIFO's read port to the data read port of the
    * request */
-  io.rxReq.pkt := io.fifoRdReq.data
+  io.rxReq.pkt := pktFIFOInst.io.rdReq.data
   // Indicate the receiver is ready if there is a packet available to be read
   io.rxReq.ready := !pktFIFOInst.io.empty
   // Indicate that the operation is completed if a full packet was read
@@ -120,7 +122,7 @@ class ReceiveSubsystem(pktSize: Int, pktBufDepth: Int) extends Module {
   /* Packet FIFO drivers */
   /***********************/
   // Hook up the write port to the shift register
-  pktFIFOInst.io.wrReq.data := pktShiftRegInst.io.dout
+  pktFIFOInst.io.wrReq.data := pktShiftRegInst.io.shiftReg.asUInt
   // Write enable (determined by number of bits shifted into shift register)
   pktFIFOInst.io.wrReq.en := pktFIFOWrEn
   pktFIFOInst.io.rdReq.en := io.rxReq.req
