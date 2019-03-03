@@ -129,6 +129,9 @@ module tb_uart;
       begin
         #(4 * OTHER_CLK_PERIOD);
         transmit_pkt(
+          8'haa
+        );
+        transmit_pkt(
           8'h55
         );
       end

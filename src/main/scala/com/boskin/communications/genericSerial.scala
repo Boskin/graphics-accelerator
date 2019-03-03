@@ -13,14 +13,14 @@ class GenericSerialIO extends Bundle {
   val tx = Output(Bool())
 }
 
-class GenericSerial[T <: GenericSerialIO](gen: T, fifoDepth: Int)
-  extends Module {
+class GenericSerial[T <: GenericSerialIO](gen: T, pktSize: Int,
+  txFIFODepth: Int, rxFIFODepth: Int) extends Module {
 
   val io = IO(
     gen
   )
 
-  val rxFIFOInst = Module(new AsyncFIFO(Bool(), fifoDepth))
+  val rxFIFOInst = Module(new AsyncFIFO(Bool(), rxFIFODepth))
   rxFIFOInst.io.rdClk := clock
   rxFIFOInst.io.rdReset := reset
 
@@ -31,7 +31,7 @@ class GenericSerial[T <: GenericSerialIO](gen: T, fifoDepth: Int)
   rxFIFOInst.io.wrReq.data := rxSync
   
   // TX FIFO 
-  val txFIFOInst = Module(new AsyncFIFO(Bool(), fifoDepth))
+  val txFIFOInst = Module(new AsyncFIFO(UInt(pktSize.W), txFIFODepth))
   txFIFOInst.io.rdClk := io.otherClk
   txFIFOInst.io.rdReset := io.otherReset
 

@@ -32,7 +32,7 @@ class UARTIO(pktSize: Int) extends GenericSerialIO {
 }
 
 class UART(pktSize: Int, rxDepth: Int, fifoDepth: Int)
-  extends GenericSerial(new UARTIO(pktSize), fifoDepth) {
+  extends GenericSerial(new UARTIO(pktSize), pktSize, fifoDepth, fifoDepth) {
 
   val transInst = Module(new TransmitSubsystem(pktSize))
   // Probably need to expand this
@@ -41,6 +41,7 @@ class UART(pktSize: Int, rxDepth: Int, fifoDepth: Int)
   transInst.io.fifoRdReq <> txFIFOInst.io.rdReq
   transInst.io.fifoWrReq <> txFIFOInst.io.wrReq
   // More inputs
+  transInst.io.fifoFull := txFIFOInst.io.full
   transInst.io.fifoEmpty := txFIFOInst.io.empty
 
   transInst.io.otherClk := io.otherClk
