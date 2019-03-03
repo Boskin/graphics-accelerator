@@ -73,8 +73,19 @@ class TransmitSubsystem(pktSize: Int) extends Module {
         when (transBitCount === pktSize.U) {
           shiftRegEn := false.B
           txReg := true.B
-          state := idle
+
+          // Read from the FIFO ahead of time
+          when (!fifoRdEn) {
+            fifoRdEn := ~io.fifoEmpty
+            state := idle
+          } .otherwise {
+            fifoRdEn := false.B
+            state := startBit
+          }
         } .otherwise {
+          when (transBitCount === (pktSize - 1).U && !io.fifoEmpty) {
+            fifoRdEn := true.B
+          }
           txReg := txBitShiftRegInst.io.dout
           transBitCount := transBitCount + 1.U
         }

@@ -134,11 +134,15 @@ module tb_uart;
         transmit_pkt(
           8'h55
         );
+        #(19 * OTHER_CLK_PERIOD);
+        transmit_pkt(
+          8'hfe
+        );
       end
     join
 
     repeat (20) begin
-      #MAIN_CLK_PERIOD;
+      #OTHER_CLK_PERIOD;
     end
 
     wait (tx);
