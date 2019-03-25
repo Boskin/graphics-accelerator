@@ -113,7 +113,7 @@ class ReceiveSubsystem(pktSize: Int, pktBufDepth: Int) extends Module {
    * request */
   io.rxReq.pkt := pktFIFOInst.io.rdReq.data
   // Indicate the receiver is ready if there is a packet available to be read
-  io.rxReq.ready := !pktFIFOInst.io.empty
+  io.rxReq.ready := ~pktFIFOInst.io.empty
   // Indicate that the operation is completed if a full packet was read
   io.rxReq.done := pktFIFOInst.io.rdReq.valid
 
