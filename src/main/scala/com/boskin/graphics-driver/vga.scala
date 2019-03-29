@@ -28,7 +28,7 @@ case class Timing(visible: Int, frontPorch: Int, sync: Int, backPorch: Int) {
 }
 
 // Full timing specification
-case class VGATiming(horizontal: Timing, vertical: Timing, pixelWidth: Int)
+case class VGATiming(horizontal: Timing, vertical: Timing)
 
 // VGA Module
 class VGA(timeSpec: VGATiming, pixelWidth: Int, memRdLatency: Int)
@@ -120,4 +120,13 @@ class VGA(timeSpec: VGATiming, pixelWidth: Int, memRdLatency: Int)
     io.vsync := vsyncReg
     io.hsync := hsyncReg
   }
+}
+
+object GenVGA extends App {
+  val pixelWidth: Int = 12
+  val verticalTiming: Timing = Timing(480, 10, 10, 10)
+  val horizontalTiming: Timing = Timing(640, 10, 10, 10)
+  
+  val videoTiming: VGATiming = VGATiming(verticalTiming, horizontalTiming)
+  chisel3.Driver.execute(args, () => new VGA(videoTiming, pixelWidth, 1))
 }
