@@ -9,9 +9,7 @@ case class ColorSpec(rWidth: Int, gWidth: Int, bWidth: Int, alphaWidth: Int) {
   val width: Int = rWidth + gWidth + bWidth + alphaWidth
 }
 
-class Color(val spec: ColorSpec)
-  extends Bundle {
-
+class Color(val spec: ColorSpec) extends Bundle {
   val r = UInt(spec.rWidth.W)
   val g = UInt(spec.gWidth.W)
   val b = UInt(spec.bWidth.W)
