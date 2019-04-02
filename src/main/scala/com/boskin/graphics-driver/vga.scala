@@ -39,19 +39,15 @@ class VGA(timeSpec: VGATiming, pixelWidth: Int, memRdLatency: Int)
   val ptrVWidth: Int = log2Ceil(timeSpec.vertical.total)
 
   val io = IO(new Bundle {
-    // Graphics clock
-    val gClk = Input(Clock())
-    // Reset for graphics clock domain
-    val gReset = Input(Bool())
-    // Input pixel synchronized to gClk
+    // Input pixel
     val pixelIn = Input(Color(pixelWidth))
-    // Enable signal synchronized from system clock domain
+    // Enable signal synchronous to system clock domain
     val en = Input(Bool())
 
-    // Pointers for requesting pixels, synchronized to gClk
+    // Pointers for requesting pixels
     val rowPtr = Output(UInt(ptrVWidth.W))
     val colPtr = Output(UInt(ptrHWidth.W))
-    // Read request signal (active high), synchronized to gClk
+    // Read request signal (active high)
     val req = Output(Bool())
     // Output pixel synchronized to graphics clock
     val pixelOut = Output(Color(pixelWidth))
@@ -61,65 +57,59 @@ class VGA(timeSpec: VGATiming, pixelWidth: Int, memRdLatency: Int)
   })
 
 
-  // Basically everything works in the gClk domain
-  withClockAndReset(io.gClk, io.gReset) {
-    // Enable synchronized to gClk
-    val gEn = CDC(io.en)
+  // Row and column counters
+  val rowCounter = RegInit(0.U(ptrVWidth.W))
+  val colCounter = RegInit(0.U(ptrHWidth.W))
+  // Output pixel
+  val pixelOutReg = Reg(Color(pixelWidth))
 
-    // Row and column counters
-    val rowCounter = Reg(UInt(ptrVWidth.W))
-    val colCounter = Reg(UInt(ptrHWidth.W))
-    // Output pixel
-    val pixelOutReg = Reg(Color(pixelWidth))
+  // Feed register through to outputs
+  io.rowPtr := rowCounter
+  io.colPtr := colCounter
+  io.pixelOut := pixelOutReg
 
-    // Feed register through to outputs
-    io.rowPtr := rowCounter
-    io.colPtr := colCounter
-    io.pixelOut := pixelOutReg
-
-    when (io.en) {
-      colCounter := colCounter + 1.U
-      when (colCounter === (timeSpec.horizontal.total - 1).U) {
-        rowCounter := rowCounter + 1.U
-      }
-
-      pixelOutReg := io.pixelIn
+  when (io.en) {
+    colCounter := colCounter + 1.U
+    when (colCounter === (timeSpec.horizontal.total - 1).U) {
+      rowCounter := rowCounter + 1.U
     }
 
-    // Delayed registers that factor in memory read latency
-    val rowCounterDly = Delay(UInt(ptrVWidth.W), 1, rowCounter)
-    val colCounterDly = Delay(UInt(ptrHWidth.W), 1, colCounter)
-    val reqDly = Delay(Bool(), 1, io.req)
-
-    // Only request pixels if in the visible region
-    io.req := timeSpec.vertical.visibleRegion(rowCounter) &
-      timeSpec.horizontal.visibleRegion(colCounter)
-
-    // If the there was no valid request, output a black pixel
-    when (reqDly) {
-      io.pixelOut := pixelOutReg
-    } .otherwise {
-      io.pixelOut.r := 0.U
-      io.pixelOut.g := 0.U
-      io.pixelOut.b := 0.U
-    }
-
-    /*************************/
-    /* VSync and HSync logic */
-    /*************************/
-
-    // Register the sync pulses and use the counters, which are 1 cycle ahead
-    val vsyncReg = Reg(Bool())
-    val hsyncReg = Reg(Bool())
-
-    vsyncReg := timeSpec.vertical.syncRegion(rowCounter)
-    hsyncReg := timeSpec.horizontal.syncRegion(colCounter) &&
-      timeSpec.vertical.visibleRegion(rowCounter)
-
-    // Assign outputs
-    io.vsync := vsyncReg
-    io.hsync := hsyncReg
+    pixelOutReg := io.pixelIn
   }
+
+  // Delayed registers that factor in memory read latency
+  val rowCounterDly = Delay(UInt(ptrVWidth.W), 1, rowCounter)
+  val colCounterDly = Delay(UInt(ptrHWidth.W), 1, colCounter)
+  val reqDly = Delay(Bool(), 1, io.req)
+
+  // Only request pixels if in the visible region
+  io.req := timeSpec.vertical.visibleRegion(rowCounter) &
+    timeSpec.horizontal.visibleRegion(colCounter)
+
+  // If the there was no valid request, output a black pixel
+  when (reqDly) {
+    io.pixelOut := pixelOutReg
+  } .otherwise {
+    io.pixelOut.r := 0.U
+    io.pixelOut.g := 0.U
+    io.pixelOut.b := 0.U
+  }
+
+  /*************************/
+  /* VSync and HSync logic */
+  /*************************/
+
+  // Register the sync pulses and use the counters, which are 1 cycle ahead
+  val vsyncReg = Reg(Bool())
+  val hsyncReg = Reg(Bool())
+
+  vsyncReg := timeSpec.vertical.syncRegion(rowCounter)
+  hsyncReg := timeSpec.horizontal.syncRegion(colCounter) &&
+    timeSpec.vertical.visibleRegion(rowCounter)
+
+  // Assign outputs
+  io.vsync := vsyncReg
+  io.hsync := hsyncReg
 }
 
 object GenVGA extends App {
