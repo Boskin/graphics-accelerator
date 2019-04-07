@@ -3,6 +3,7 @@ test_run_dir/*
 generated
 *.vcd
 *.vvp
+quartus/
 ### XilinxISE template
 # intermediate build files
 *.bgn
