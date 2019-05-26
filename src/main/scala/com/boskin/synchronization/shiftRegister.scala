@@ -3,29 +3,36 @@ package com.boskin.synchronization
 
 import chisel3._
 
+class ShiftRegisterIO[T <: Data](private val gen: T, val length: Int,
+  val load: Boolean, val exposeReg: Boolean) extends Bundle {
+
+  val din = Input(gen)
+  val en = Input(Bool())
+  val ld = if (load) {
+    Input(Bool())
+  } else {
+    null
+  }
+
+  val ldVal = if (load) {
+    Input(Vec(length, gen))
+  } else {
+    null
+  }
+
+  val shiftReg = if (exposeReg) {
+    Output(Vec(length, gen))
+  } else {
+    null
+  }
+
+  val dout = Output(gen)
+}
+
 class ShiftRegister[T <: Data](gen: T, length: Int, load: Boolean = false,
   exposeReg: Boolean = false) extends Module {
 
-  val io = IO(new Bundle {
-    val din = Input(gen)
-    val en = Input(Bool())
-    val ld = if (load) {
-      Input(Bool())
-    } else {
-      null
-    }
-    val ldVal = if (load) {
-      Input(Vec(length, gen))
-    } else {
-      null
-    }
-    val shiftReg = if (exposeReg) {
-      Output(Vec(length, gen))
-    } else {
-      null
-    }
-    val dout = Output(gen)
-  })
+  val io = IO(new ShiftRegisterIO(gen, length, load, exposeReg))
 
   // Inputs enter at index 0 and travel to higher indexes
   val shiftReg = Reg(Vec(length, gen))
@@ -42,10 +49,10 @@ class ShiftRegister[T <: Data](gen: T, length: Int, load: Boolean = false,
   }
 
   if (load) {
-    when (io.en) {
-      shiftLogic()
-    } .elsewhen (io.ld) {
+    when (io.ld) {
       loadLogic()
+    } .elsewhen (io.en) {
+      shiftLogic()
     }
   } else {
     when (io.en) {
