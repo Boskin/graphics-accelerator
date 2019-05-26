@@ -16,28 +16,34 @@ class AsyncFIFOReq[T <: Data](private val gen: T, val write: Boolean)
   val valid = Output(Bool())
 }
 
+class AsyncFIFOIO[T <: Data](private val gen: T, val countWidth: Int)
+  extends Bundle {
+
+  val rdClk = Input(Clock())
+  val rdReset = Input(Bool())
+  val rdReq = new AsyncFIFOReq(gen, false)
+  val empty = Output(Bool())
+  val rdCount = Output(UInt(countWidth.W))
+
+  val wrClk = Input(Clock())
+  val wrReset = Input(Bool())
+  val wrReq = new AsyncFIFOReq(gen, true)
+  val full = Output(Bool())
+  val wrCount = Output(UInt(countWidth.W))
+}
+
 class AsyncFIFO[T <: Data](gen: T, depth: Int) extends Module {
   // Local parameters
+  val countWidth = log2Ceil(depth)
   // Add an extra bit to the pointers for full/empty logic
-  val ptrWidth = log2Ceil(depth) + 1
+  val ptrWidth = countWidth +  1
   // Depth must be a power of 2
-  val trueDepth = 1 << (ptrWidth - 1)
+  val trueDepth = 1 << countWidth
   
   // IO
-  val io = IO(new Bundle {
-    val rdClk = Input(Clock())
-    val rdReset = Input(Bool())
-    val rdReq = new AsyncFIFOReq(gen, false)
-    val empty = Output(Bool())
-    val rdCount = Output(UInt((ptrWidth - 1).W))
+  val io = IO(new AsyncFIFOIO(gen, countWidth))
 
-    val wrClk = Input(Clock())
-    val wrReset = Input(Bool())
-    val wrReq = new AsyncFIFOReq(gen, true)
-    val full = Output(Bool())
-    val wrCount = Output(UInt((ptrWidth - 1).W))
-  })
-
+  // Helper function for advancing a pointer
   def ptrDiff(ptr1: UInt, ptr2: UInt, pWidth: Int): UInt = {
     val res = UInt(pWidth.W)
     when (ptr1 > ptr2) {
@@ -70,18 +76,20 @@ class AsyncFIFO[T <: Data](gen: T, depth: Int) extends Module {
   withClockAndReset(io.rdClk, io.rdReset) {
     val wrPtrSyncBin = ptrSyncConv(wrPtrGray)
     val rdPtrBin = GrayToBinary(rdPtrGray, ptrWidth)
-    val empty = RegNext(wrPtrSyncBin === rdPtrBin)
-    io.empty := empty
 
-    val rdCount = Reg(UInt(ptrWidth.W))
+    io.empty := wrPtrSyncBin === rdPtrBin
+
+    val rdCount = RegInit(0.U(countWidth.W))
     io.rdCount := rdCount
 
     val rdData = Reg(gen)
     io.rdReq.data := rdData
 
-    io.rdReq.valid := RegNext(io.rdReq.en && !empty)
+    val valid = RegInit(false.B)
+    valid := io.rdReq.en && !io.empty
+    io.rdReq.valid := valid
 
-    when (io.rdReq.en && !empty) {
+    when (io.rdReq.en && !io.empty) {
       rdData := fifoMem(rdPtrGray)
       rdPtrGray := BinaryToGray(rdPtrBin + 1.U, ptrWidth)
       rdCount := wrPtrSyncBin - (rdPtrBin + 1.U)
@@ -94,23 +102,23 @@ class AsyncFIFO[T <: Data](gen: T, depth: Int) extends Module {
   withClockAndReset(io.wrClk, io.wrReset) {
     val rdPtrSyncBin = ptrSyncConv(rdPtrGray)
     val wrPtrBin = GrayToBinary(wrPtrGray, ptrWidth)
-    val full = RegNext(rdPtrSyncBin(ptrWidth - 2, 0) ===
+    io.full := rdPtrSyncBin(ptrWidth - 2, 0) ===
       wrPtrBin(ptrWidth - 2, 0) &&
-      rdPtrSyncBin(ptrWidth - 1) =/= wrPtrBin(ptrWidth - 1))
-    io.full := full
-    io.wrReq.valid := RegNext(io.wrReq.en && !full)
+      rdPtrSyncBin(ptrWidth - 1) =/= wrPtrBin(ptrWidth - 1)
 
-    val wrCount = Reg(UInt(ptrWidth.W))
+    val valid = RegInit(false.B)
+    valid := io.wrReq.en && !io.full
+    io.wrReq.valid := valid
+
+    val wrCount = RegInit(0.U(countWidth.W))
     io.wrCount := wrCount
 
-    when (io.wrReq.en && !full) {
+    when (io.wrReq.en && !io.full) {
       fifoMem(wrPtrGray) := io.wrReq.data
       wrPtrGray := BinaryToGray(wrPtrBin + 1.U, ptrWidth)
       wrCount := wrPtrBin - rdPtrSyncBin + 1.U
-      //io.wrCount := RegNext(wrPtrBin - rdPtrSyncBin + 1.U)
     } .otherwise {
       wrCount := wrPtrBin - rdPtrSyncBin
-      //io.wrCount := RegNext(wrPtrBin - rdPtrSyncBin)
     }
   }
 }
