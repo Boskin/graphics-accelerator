@@ -2,7 +2,7 @@ package com.boskin.communications.serdes
 
 import chisel3._
 import chisel3.core.withClockAndReset
-import chisel3.util.log2Ceil
+import chisel3.util._
 
 import com.boskin.synchronization.{AsyncFIFO, ShiftRegister}
 
@@ -21,7 +21,8 @@ class DeserializerIO(val pktWidth: Int) extends Bundle {
 class Deserializer(pktWidth: Int, startSeq: Seq[Bool], stopSeq: Seq[Bool],
   fifoDepth: Int) extends Module {
 
-  val startSeqWidth = startSeq.width
+  val startSeqWidth = startSeq.length
+  val stopSeqWidth = stopSeq.length
   val startSeqCounterWidth = log2Ceil(startSeqWidth)
   val pktCounterWidth = log2Ceil(pktWidth)
 
@@ -33,8 +34,7 @@ class Deserializer(pktWidth: Int, startSeq: Seq[Bool], stopSeq: Seq[Bool],
 
   val counterWidth = log2Ceil(if (startSeqWidth >= pktWidth &&
     startSeqWidth >= stopSeqWidth) {
-
-    startSeqWidth
+      startSeqWidth
     } else if (pktWidth >= startSeqWidth && pktWidth >= stopSeqWidth) {
       pktWidth
     } else {
@@ -46,7 +46,7 @@ class Deserializer(pktWidth: Int, startSeq: Seq[Bool], stopSeq: Seq[Bool],
     startSeqVec.asUInt
   }
 
-  val io = IO(new Deserializer(pktWidth))
+  val io = IO(new DeserializerIO(pktWidth))
 
   val fifoInst = Module(new AsyncFIFO(UInt(pktWidth.W), fifoDepth))
   val shiftRegInst = withClockAndReset(io.sClk, io.sReset) {
@@ -54,30 +54,77 @@ class Deserializer(pktWidth: Int, startSeq: Seq[Bool], stopSeq: Seq[Bool],
   }
 
   val shiftRegUInt = shiftRegInst.io.shiftReg.asUInt
+
+  // FIFO read port connections
+  fifoInst.io.rdClk := clock
+  fifoInst.io.rdReset := reset
+  fifoInst.io.rdReq.en := io.rdEn
+  io.pOut := fifoInst.io.rdReq.data
+  io.validOut := fifoInst.io.rdReq.valid
+  io.dataReady := ~fifoInst.io.empty
+
+  // (Some) FIFO write port connections
+  fifoInst.io.wrClk := io.sClk
+  fifoInst.io.wrReset := io.sReset
   fifoInst.io.wrReq.data := shiftRegUInt(pktWidth - 1, 0)
 
 
+  // sClk domain logic
   withClockAndReset(io.sClk, io.sReset) {
-    val idle :: pktShift :: Nil = Enum(2)
-    val state = RegInit(idle)
-    val nextState = Wire(UInt(2.W))
 
-    shiftRegInst.din := io.sIn
-    shiftRegInst.en := true.B
-    // Reset
-    shiftRegInst.ld := io.sReset
-    shiftRegInst.ldVal := VecInit(Seq.fill(shiftRegWidth, false.B))
+    val idle :: pktShift :: stop :: Nil = Enum(3)
+    val state = RegInit(stop)
+
+    val shiftCount = RegInit(0.U(counterWidth.W))
+
+    shiftRegInst.io.din := io.sIn
+    shiftRegInst.io.en := true.B
+
+    // Reset logic
+    shiftRegInst.io.ld := io.sReset
+    shiftRegInst.io.ldVal := VecInit(Seq.fill(shiftRegWidth) {true.B})
+
+    // FIFO write condition
+    fifoInst.io.wrReq.en := shiftCount === (pktWidth - 1).U &&
+      state === pktShift
 
     switch (state) {
       is (idle) {
+        shiftCount := 0.U
         when (shiftRegUInt(startSeqWidth - 1, 0) === startSeqUInt) {
-          nextState := pktShift
+          state := pktShift
         } .otherwise {
-          nextState := idle
+          state := idle
         }
       }
       is (pktShift) {
+        when (shiftCount === (pktWidth - 1).U) {
+          shiftCount := 0.U
+          state := stop
+        } .otherwise {
+          shiftCount := shiftCount + 1.U
+          state := pktShift
+        }
+      }
+      is (stop) {
+        when (shiftCount === (stopSeqWidth - 1).U) {
+          shiftCount := 0.U
+          state := idle
+        } .otherwise {
+          shiftCount := shiftCount + 1.U
+          state := stop
+        }
       }
     }
   }
+}
+
+object GenDeserializer extends App {
+  val startSeq = Seq(false.B)
+  val pktWidth = 8
+  val stopSeq = Seq(true.B)
+  val fifoDepth = 256
+
+  chisel3.Driver.execute(args, () => new Deserializer(pktWidth, startSeq,
+    stopSeq, fifoDepth))
 }
