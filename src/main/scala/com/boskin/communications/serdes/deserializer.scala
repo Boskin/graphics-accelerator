@@ -71,18 +71,21 @@ class Deserializer(pktWidth: Int, startSeq: Seq[Bool], stopSeq: Seq[Bool],
 
   // sClk domain logic
   withClockAndReset(io.sClk, io.sReset) {
-
+    // States
     val idle :: pktShift :: stop :: Nil = Enum(3)
-    val state = RegInit(stop)
 
-    val shiftCount = RegInit(0.U(counterWidth.W))
+    /* Initialize in stop state and initialize the counter such that the initial
+     * shift register state is ignored */
+    val state = RegInit(stop)
+    val shiftCount = 
+      RegInit(((1 << counterWidth) - shiftRegWidth).U(counterWidth.W))
 
     shiftRegInst.io.din := io.sIn
     shiftRegInst.io.en := true.B
 
     // Reset logic
     shiftRegInst.io.ld := io.sReset
-    shiftRegInst.io.ldVal := VecInit(Seq.fill(shiftRegWidth) {true.B})
+    shiftRegInst.io.ldVal := VecInit(Seq.fill(shiftRegWidth) {false.B})
 
     // FIFO write condition
     fifoInst.io.wrReq.en := shiftCount === (pktWidth - 1).U &&
