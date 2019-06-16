@@ -76,10 +76,10 @@ module tb_deserializer;
     $dumpfile("tb_deserializer.vcd");
     $dumpvars();
 
+    // Pre-generate test data
     for (i = 0; i < TEST_COUNT; i = i + 1) begin
       test_pkt[i] = $urandom % (2 ** PKT_W - 1);
     end
-    test_pkt[0] = 'hff;
 
 
     fork
