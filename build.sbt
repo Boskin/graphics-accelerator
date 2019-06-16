@@ -49,5 +49,6 @@ libraryDependencies ++= Seq("chisel3","chisel-iotesters").map {
   dep: String => "edu.berkeley.cs" %% dep % sys.props.getOrElse(dep + "Version", defaultVersions(dep)) }
 
 scalacOptions ++= scalacOptionsVersion(scalaVersion.value)
+scalacOptions += "-feature"
 
 javacOptions ++= javacOptionsVersion(scalaVersion.value)
