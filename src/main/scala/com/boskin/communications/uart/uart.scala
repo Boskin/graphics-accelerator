@@ -4,69 +4,74 @@ import chisel3._
 import chisel3.core.withClock
 import chisel3.util._
 
+import com.boskin.communications.serdes.{Serializer, Deserializer}
 import com.boskin.communications.{GenericSerial, GenericSerialIO}
 import com.boskin.synchronization.CDC
 
-class UARTReq(pktSize: Int, write: Boolean) extends Bundle {
-  val pkt = if (write) {
-    Input(UInt(pktSize.W))
+class UARTReq(pktWidth: Int, write: Boolean) extends Bundle {
+  val data = if (write) {
+    Input(UInt(pktWidth.W))
   } else {
-    Output(UInt(pktSize.W))
+    Output(UInt(pktWidth.W))
   }
-  /* Input high if a received bit must be deserialized, or if a packet must be
-   * sent */
-  val req = Input(Bool())
-  // High if the transmitter/receiver is ready for a new request
-  val ready = Output(Bool())
-  // Output high if the last request is processed successfully
-  val done = Output(Bool())
-}
 
-class UARTIO(pktSize: Int) extends GenericSerialIO {
-  val rxReq = new UARTReq(pktSize, false)
-  val txReq = new UARTReq(pktSize, true)
-
-  override def cloneType: this.type = {
-    new UARTIO(pktSize).asInstanceOf[this.type]
+  val en = Input(Bool())
+  val valid = if (write) {
+    null
+  } else {
+    Output(Bool())
   }
 }
 
-class UART(pktSize: Int, rxDepth: Int, fifoDepth: Int)
-  extends GenericSerial(new UARTIO(pktSize), pktSize, fifoDepth, fifoDepth) {
+class UARTIO(val pktWidth: Int) extends Bundle {
+  val otherClk = Input(Clock())
+  val otherReset = Input(Bool())
 
-  val transInst = Module(new TransmitSubsystem(pktSize))
-  // Probably need to expand this
-  transInst.io.txReq <> io.txReq
-  // Bulk-connect FIFO signals
-  transInst.io.fifoRdReq <> txFIFOInst.io.rdReq
-  transInst.io.fifoWrReq <> txFIFOInst.io.wrReq
-  // More inputs
-  transInst.io.fifoFull := txFIFOInst.io.full
-  transInst.io.fifoEmpty := txFIFOInst.io.empty
+  val tx = Output(Bool())
+  val rx = Input(Bool())
 
-  transInst.io.otherClk := io.otherClk
-  transInst.io.otherReset := io.otherReset
+  val rxReq = new UARTReq(pktWidth, false)
+  val txReq = new UARTReq(pktWidth, true)
 
-  // Raw TX signal
-  io.tx := transInst.io.tx
+  val dataReady = Output(Bool())
+}
 
-  val recvInst = Module(new ReceiveSubsystem(pktSize, rxDepth)) 
+class UART(pktWidth: Int, rxDepth: Int, fifoDepth: Int) extends Module {
 
-  recvInst.io.rxReq <> io.rxReq
-  recvInst.io.fifoRdReq <> rxFIFOInst.io.rdReq
-  recvInst.io.fifoWrReq <> rxFIFOInst.io.wrReq
-  recvInst.io.fifoEmpty := rxFIFOInst.io.empty
+  val io = IO(new UARTIO(pktWidth))
 
-  recvInst.io.otherClk := io.otherClk
-  recvInst.io.otherReset := io.otherReset
+  val startSeq = Seq(false.B)
+  val stopSeq = Seq(true.B)
 
-  recvInst.io.rxSync := rxSync
+  val transInst = Module(new Serializer(pktWidth, startSeq, stopSeq, true,
+    false, fifoDepth))
+  val recvInst = Module(new Deserializer(pktWidth, startSeq, stopSeq, fifoDepth))
+
+  transInst.io.sClk := io.otherClk
+  transInst.io.sReset := io.otherReset
+
+  transInst.io.pIn := io.txReq.data
+  transInst.io.validIn := io.txReq.en
+
+  io.tx := transInst.io.sOut
+
+  recvInst.io.sClk := io.otherClk
+  recvInst.io.sReset := io.otherReset
+
+  // Synchronize RX (possible phase difference)
+  recvInst.io.sIn := CDC(io.rx)
+  recvInst.io.rdEn := io.rxReq.en
+
+  io.rxReq.data := recvInst.io.pOut
+  io.rxReq.valid := recvInst.io.validOut
+
+  io.dataReady := recvInst.io.dataReady
 }
 
 object GenUART extends App {
-  val pktSize = 8
+  val pktWidth = 8
   val rxDepth = 32
   val fifoDepth = 32
 
-  chisel3.Driver.execute(args, () => new UART(pktSize, rxDepth, fifoDepth))
+  chisel3.Driver.execute(args, () => new UART(pktWidth, rxDepth, fifoDepth))
 }
